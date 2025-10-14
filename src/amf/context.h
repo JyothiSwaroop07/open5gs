@@ -54,6 +54,10 @@ typedef enum {
 } amf_ue_context_transfer_state_t;
 
 typedef struct amf_context_s {
+
+    unsigned ue_count; /* To maintain number of UEs for overload management*/
+    unsigned ue_overload_threshold; /* Max number of UEs read from amf config*/
+
     /* Served GUAMI */
     int num_of_served_guami;
     ogs_guami_t served_guami[OGS_MAX_NUM_OF_SERVED_GUAMI];
