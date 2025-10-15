@@ -1635,8 +1635,8 @@ static void common_register_state(ogs_fsm_t *s, amf_event_t *e,
                 }
 
                 /* Send REGISTRATION REJECT with backoff */
-                nas_5gs_send_gmm_reject_with_backoff(ran_ue, amf_ue,
-                                                    OGS_5GMM_CAUSE_CONGESTION, result.backoff_time);
+                ogs_expect(OGS_OK == nas_5gs_send_gmm_reject_with_backoff(ran_ue, amf_ue,
+                                                    OGS_5GMM_CAUSE_CONGESTION, result.backoff_time));
 
                 break;
             }

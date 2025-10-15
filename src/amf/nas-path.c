@@ -941,7 +941,7 @@ int nas_5gs_send_gmm_reject(
     return rv;
 }
 
-void nas_5gs_send_gmm_reject_with_backoff(
+int nas_5gs_send_gmm_reject_with_backoff(
         ran_ue_t *ran_ue, amf_ue_t *amf_ue, ogs_nas_5gmm_cause_t gmm_cause, uint32_t backoff_seconds)
 {
     int rv;
@@ -960,7 +960,7 @@ void nas_5gs_send_gmm_reject_with_backoff(
     gmmbuf = gmm_build_registration_reject_with_backoff(amf_ue, gmm_cause, t3346);
     if (!gmmbuf) {
         ogs_error("gmm_build_registration_reject_with_backoff() failed");
-        return;
+        return OGS_ERROR;
     }
 
     /*Send Registration Reject with backoff timer*/
@@ -968,10 +968,11 @@ void nas_5gs_send_gmm_reject_with_backoff(
     if (rv != OGS_OK) {
         ogs_error("nas_5gs_send_to_downlink_nas_transport() failed");
         ogs_pkbuf_free(gmmbuf);
-        return;
+        return OGS_ERROR;
     }
 
     ogs_info("Sent Registration Reject with backoff timer T3346");
+    return OGS_OK;
 }
 
 static ogs_nas_5gmm_cause_t gmm_cause_from_sbi(int status)
