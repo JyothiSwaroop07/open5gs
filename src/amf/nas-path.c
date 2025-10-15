@@ -950,7 +950,7 @@ void nas_5gs_send_gmm_reject_with_backoff(
     ogs_assert(ran_ue);
     ogs_assert(amf_ue);
 
-    ogs_info("[%s] GMM reject with cause [%d]", amf_ue->supi, gmm_cause);
+    ogs_info("GMM reject with cause [%d]", gmm_cause);
 
     /*Encode timer T3346*/
     uint8_t t3346 = encode_t3346(backoff_seconds);
