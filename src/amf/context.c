@@ -84,8 +84,6 @@ void amf_context_init(void)
     self.supi_hash = ogs_hash_make();
     ogs_assert(self.supi_hash);
 
-    amf_self()->ue_count = 0;
-
     context_initialized = 1;
 }
 
@@ -1081,9 +1079,6 @@ int amf_context_parse_config(void)
                     /* handle config in sbi library */
                 } else if (!strcmp(amf_key, "metrics")) {
                     /* handle config in metrics library */
-                } else if (!strcmp(amf_key, "ue_overload_threshold")) {
-                    const char *v = ogs_yaml_iter_value(&amf_iter);
-                    if (v) self.ue_overload_threshold = atoi(v); // Max UEs to handle for overload management
                 } else
                     ogs_warn("unknown key `%s`", amf_key);
             }
@@ -1684,8 +1679,6 @@ amf_ue_t *amf_ue_add(ran_ue_t *ran_ue)
 
     ogs_list_add(&self.amf_ue_list, amf_ue);
 
-    amf_self()->ue_count = ogs_list_count(&self.amf_ue_list); // Update UE count for overload management
-
     ogs_info("[Added] Number of AMF-UEs is now %d",
             ogs_list_count(&self.amf_ue_list));
 
@@ -1784,8 +1777,6 @@ void amf_ue_remove(amf_ue_t *amf_ue)
 
     ogs_pool_id_free(&amf_ue_pool, amf_ue);
 
-    amf_self()->ue_count = ogs_list_count(&self.amf_ue_list); // Update UE count for overload management
-
     ogs_info("[Removed] Number of AMF-UEs is now %d",
             ogs_list_count(&self.amf_ue_list));
 }
@@ -1801,8 +1792,6 @@ void amf_ue_remove_all(void)
 
         amf_ue_remove(amf_ue);
     }
-
-    self.ue_count = 0; // Update UE count for overload management
 }
 
 void amf_ue_fsm_init(amf_ue_t *amf_ue)

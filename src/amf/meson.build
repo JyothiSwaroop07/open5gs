@@ -59,8 +59,6 @@ libamf_sources = files('''
 
     amf-sm.c
 
-    amf-overload.c
-
     init.c
     metrics.c
     gnb-info.c

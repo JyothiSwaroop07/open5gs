@@ -67,13 +67,6 @@ int nas_5gs_send_gmm_status(amf_ue_t *amf_ue, ogs_nas_5gmm_cause_t cause);
 
 int nas_5gs_send_gmm_reject(
         ran_ue_t *ran_ue, amf_ue_t *amf_ue, ogs_nas_5gmm_cause_t gmm_cause);
-
-//swaroop change for registration reject on amf overload
-int nas_5gs_send_gmm_reject_with_backoff(ran_ue_t *ran_ue, amf_ue_t *amf_ue,
-                                          ogs_nas_5gmm_cause_t gmm_cause,
-                                          uint32_t backoff_seconds);
-//end swaroop change for registration reject on amf overload
-
 int nas_5gs_send_gmm_reject_from_sbi(amf_ue_t *amf_ue, int status);
 
 int nas_5gs_send_dl_nas_transport(ran_ue_t *ran_ue, amf_sess_t *sess,

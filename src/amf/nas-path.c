@@ -21,7 +21,6 @@
 #include "ngap-build.h"
 #include "gmm-build.h"
 #include "nas-path.h"
-#include "amf-overload.h"
 
 int nas_5gs_send_to_gnb(amf_ue_t *amf_ue, ogs_pkbuf_t *pkbuf)
 {
@@ -939,40 +938,6 @@ int nas_5gs_send_gmm_reject(
     }
 
     return rv;
-}
-
-int nas_5gs_send_gmm_reject_with_backoff(
-        ran_ue_t *ran_ue, amf_ue_t *amf_ue, ogs_nas_5gmm_cause_t gmm_cause, uint32_t backoff_seconds)
-{
-    int rv;
-    ogs_pkbuf_t *gmmbuf = NULL;
-
-    ogs_assert(ran_ue);
-    ogs_assert(amf_ue);
-
-    ogs_info("GMM reject with cause [%d]", gmm_cause);
-
-    /*Encode timer T3346*/
-    uint8_t t3346 = encode_t3346(backoff_seconds);
-    ogs_info("Backoff timer T3346: %u seconds (encoded: 0x%02x)", backoff_seconds, t3346);
-
-    /*Build NAS Registration Reject with backoff timer IE*/
-    gmmbuf = gmm_build_registration_reject_with_backoff(amf_ue, gmm_cause, t3346);
-    if (!gmmbuf) {
-        ogs_error("gmm_build_registration_reject_with_backoff() failed");
-        return OGS_ERROR;
-    }
-
-    /*Send Registration Reject with backoff timer*/
-    rv = nas_5gs_send_to_downlink_nas_transport(ran_ue, amf_ue, gmmbuf);
-    if (rv != OGS_OK) {
-        ogs_error("nas_5gs_send_to_downlink_nas_transport() failed");
-        ogs_pkbuf_free(gmmbuf);
-        return OGS_ERROR;
-    }
-
-    ogs_info("Sent Registration Reject with backoff timer T3346");
-    return OGS_OK;
 }
 
 static ogs_nas_5gmm_cause_t gmm_cause_from_sbi(int status)

@@ -31,7 +31,6 @@
 #include "sbi-path.h"
 #include "amf-sm.h"
 #include "namf-build.h"
-#include "amf-overload.h"
 
 #undef OGS_LOG_DOMAIN
 #define OGS_LOG_DOMAIN __gmm_log_domain
@@ -1622,26 +1621,6 @@ static void common_register_state(ogs_fsm_t *s, amf_event_t *e,
         switch (nas_message->gmm.h.message_type) {
         case OGS_NAS_5GS_REGISTRATION_REQUEST:
             ogs_info("Registration request");
-
-            /*--- Overload check ---*/
-            amf_overload_result_t result = amf_overload_check(ran_ue);
-            if (result.type == AMF_OVERLOAD_REJECT) {
-                ogs_error("Overload detected: rejecting UE");
-                
-                /* Create temporary AMF-UE if not already present */
-                if (!amf_ue) {
-                    amf_ue = amf_ue_add(ran_ue);
-                    amf_ue_associate_ran_ue(amf_ue, ran_ue);
-                }
-
-                /* Send REGISTRATION REJECT with backoff */
-                ogs_expect(OGS_OK == nas_5gs_send_gmm_reject_with_backoff(ran_ue, amf_ue,
-                                                    OGS_5GMM_CAUSE_CONGESTION, result.backoff_time));
-
-                break;
-            }
-            /* --- END OVERLOAD CHECK --- */
-
             gmm_cause = gmm_handle_registration_request(
                     amf_ue, h, e->ngap.code,
                     &nas_message->gmm.registration_request);

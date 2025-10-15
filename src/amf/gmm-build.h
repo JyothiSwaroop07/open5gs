@@ -30,13 +30,6 @@ ogs_pkbuf_t *gmm_build_registration_accept(amf_ue_t *amf_ue);
 ogs_pkbuf_t *gmm_build_registration_reject(
         amf_ue_t *amf_ue, ogs_nas_5gmm_cause_t gmm_cause);
 
-//swaroop change for registration reject on amf overload
-ogs_pkbuf_t *gmm_build_registration_reject_with_backoff(
-        amf_ue_t *amf_ue_or_null,
-        ogs_nas_5gmm_cause_t gmm_cause,
-        uint8_t t3346_encoded);
-//end swaroop change for registration reject on amf overload
-
 ogs_pkbuf_t *gmm_build_service_accept(amf_ue_t *amf_ue);
 ogs_pkbuf_t *gmm_build_service_reject(
         amf_ue_t *amf_ue, ogs_nas_5gmm_cause_t gmm_cause);
