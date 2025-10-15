@@ -201,6 +201,57 @@ ogs_pkbuf_t *gmm_build_registration_reject(
     return ogs_nas_5gs_plain_encode(&message);
 }
 
+//swaroop change for registration reject on amf overload
+ogs_pkbuf_t *gmm_build_registration_reject_with_backoff(
+        amf_ue_t *amf_ue_or_null,
+        ogs_nas_5gmm_cause_t gmm_cause,
+        uint8_t t3346_encoded)
+{
+
+    ogs_info("Inside gmm_build_registration_reject_with_backoff function"); //sample log
+
+    ogs_nas_5gs_message_t message;
+    ogs_nas_5gs_registration_reject_t *registration_reject;
+
+
+    memset(&message, 0, sizeof(message));
+
+    /* 5GS Registration Reject header fields */
+    message.gmm.h.extended_protocol_discriminator =
+            OGS_NAS_EXTENDED_PROTOCOL_DISCRIMINATOR_5GMM;
+    message.gmm.h.message_type = OGS_NAS_5GS_REGISTRATION_REJECT;
+
+    registration_reject = &message.gmm.registration_reject;
+    registration_reject->gmm_cause = gmm_cause;
+
+    /* Add Rejected NSSAI (if any) */
+    if (amf_ue_or_null && amf_ue_or_null->rejected_nssai.num_of_s_nssai) {
+        ogs_nas_build_rejected_nssai(&registration_reject->rejected_nssai,
+                amf_ue_or_null->rejected_nssai.s_nssai,
+                amf_ue_or_null->rejected_nssai.num_of_s_nssai);
+        registration_reject->presencemask |=
+            OGS_NAS_5GS_REGISTRATION_REJECT_REJECTED_NSSAI_PRESENT;
+    }
+
+    /* Optional T3346 backoff timer */
+    if (t3346_encoded) {
+        registration_reject->presencemask |=
+            OGS_NAS_5GS_REGISTRATION_REJECT_T3346_VALUE_PRESENT;
+        registration_reject->t3346_value.length = 1;
+        registration_reject->t3346_value.t.unit = (t3346_encoded >> 5) & 0x07;
+        registration_reject->t3346_value.t.value = t3346_encoded & 0x1F;
+        ogs_debug("    T3346 unit=%u, value=%u (encoded=0x%02X)", 
+          registration_reject->t3346_value.t.unit, 
+          registration_reject->t3346_value.t.value, 
+          t3346_encoded);
+
+    }
+
+    return ogs_nas_5gs_plain_encode(&message);
+}
+
+//end swaroop change for registration reject on amf overload
+
 ogs_pkbuf_t *gmm_build_service_accept(amf_ue_t *amf_ue)
 {
     ogs_nas_5gs_message_t message;

@@ -21,6 +21,8 @@
 #include "ngap-path.h"
 #include "sbi-path.h"
 #include "nas-path.h"
+#include "amf-overload.h"
+#include "context.h"
 
 static bool maximum_number_of_gnbs_is_reached(void)
 {
@@ -629,6 +631,29 @@ void ngap_handle_initial_ue_message(amf_gnb_t *gnb, ogs_ngap_message_t *message)
             ran_ue->ue_context_requested = true;
         }
     }
+
+    // Check AMF Overload Status
+
+    if (amf_self() && amf_self()->ue_overload_threshold > 0) {
+
+        amf_overload_result_t result = amf_overload_check(ran_ue);
+
+        if (result.type == AMF_OVERLOAD_REJECT) {
+            ogs_info("Overload detected: rejecting new UE.");
+
+            amf_ue_t *amf_ue = amf_ue_add(ran_ue);
+            amf_ue_associate_ran_ue(amf_ue, ran_ue);
+
+            ogs_expect(OGS_OK== nas_5gs_send_gmm_reject_with_backoff(
+                ran_ue, amf_ue, OGS_5GMM_CAUSE_CONGESTION, result.backoff_time));
+
+            return;
+        }
+
+    } else {
+        ogs_info("Skipping overload check: no threshold configured.");
+    }
+    // If overload detected, do not proceed with NAS message
 
     ogs_expect(OGS_OK == ngap_send_to_nas(
                 ran_ue, NGAP_ProcedureCode_id_InitialUEMessage, NAS_PDU));
