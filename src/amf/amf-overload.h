@@ -23,6 +23,8 @@ typedef struct {
 /* Function to check if AMF is overloaded (global UE count for now) */
 amf_overload_result_t amf_overload_check(ran_ue_t *ran_ue);
 
+uint8_t encode_t3346(uint32_t seconds);
+
 #ifdef __cplusplus
 }
 #endif

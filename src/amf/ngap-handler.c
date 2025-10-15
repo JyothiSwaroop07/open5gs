@@ -640,6 +640,12 @@ void ngap_handle_initial_ue_message(amf_gnb_t *gnb, ogs_ngap_message_t *message)
 
         if (result.type == AMF_OVERLOAD_REJECT) {
             ogs_info("Overload detected: rejecting new UE.");
+
+            amf_ue_t *amf_ue = amf_ue_add(ran_ue);
+            amf_ue_associate_ran_ue(amf_ue, ran_ue);
+
+            nas_5gs_send_gmm_reject_with_backoff(ran_ue, amf_ue, OGS_5GMM_CAUSE_CONGESTION, result.backoff_time);
+
             return;
         }
 
