@@ -18,6 +18,7 @@
  */
 
 #include "ngap-path.h"
+#include "amf-overload.h"
 
 static amf_context_t self;
 
@@ -66,6 +67,10 @@ void amf_context_init(void)
     /* Increase size of TMSI pool (#1827) */
     ogs_pool_init(&m_tmsi_pool, ogs_global_conf()->max.ue*2);
     ogs_pool_random_id_generate(&m_tmsi_pool);
+
+    self.slice_load_hash = ogs_hash_make();
+    ogs_assert(self.slice_load_hash);
+
 #if 0 /* For debugging : Verify whether there are duplicates of M_TMSI. */
     ogs_pool_assert_if_has_duplicate(&m_tmsi_pool);
 #endif
@@ -113,6 +118,9 @@ void amf_context_final(void)
     ogs_pool_final(&amf_ue_pool);
     ogs_pool_final(&ran_ue_pool);
     ogs_pool_final(&amf_gnb_pool);
+
+    amf_slice_load_remove_all();
+    ogs_hash_destroy(amf_self()->slice_load_hash);
 
     context_initialized = 0;
 }
@@ -652,6 +660,7 @@ int amf_context_parse_config(void)
                         self.num_of_served_tai++;
                     }
                 } else if (!strcmp(amf_key, "plmn_support")) {
+
                     ogs_yaml_iter_t plmn_support_array, plmn_support_iter;
                     ogs_yaml_iter_recurse(&amf_iter, &plmn_support_array);
                     do {
@@ -706,12 +715,14 @@ int amf_context_parse_config(void)
                                         atoi(mcc), atoi(mnc), strlen(mnc));
                                 }
                             } else if (!strcmp(plmn_support_key, "s_nssai")) {
+                                
                                 ogs_yaml_iter_t s_nssai_array, s_nssai_iter;
                                 ogs_yaml_iter_recurse(&plmn_support_iter,
                                         &s_nssai_array);
                                 do {
                                     ogs_s_nssai_t *s_nssai = NULL;
                                     const char *sst = NULL, *sd = NULL;
+                                    const char *threshold = NULL;
 
                                     if (ogs_yaml_iter_type(&s_nssai_array) ==
                                             YAML_MAPPING_NODE) {
@@ -754,8 +765,12 @@ int amf_context_parse_config(void)
                                                     s_nssai_key, "sd")) {
                                             sd = ogs_yaml_iter_value(
                                                     &s_nssai_iter);
+                                        } else if (!strcmp(
+                                                    s_nssai_key, "threshold")) {
+                                            threshold = ogs_yaml_iter_value(
+                                                    &s_nssai_iter);
+                                            }
                                         }
-                                    }
 
                                     if (sst) {
                                         s_nssai->sst = atoi(sst);
@@ -766,6 +781,13 @@ int amf_context_parse_config(void)
                                         else
                                             s_nssai->sd.v =
                                                 OGS_S_NSSAI_NO_SD_VALUE;
+
+                                        if (threshold) {
+                                            amf_slice_load_t *slice_load =
+                                                amf_slice_load_add(s_nssai,
+                                                    atoi(threshold));
+                                            ogs_assert(slice_load);
+                                        }
 
                                         self.plmn_support[
                                             self.num_of_plmn_support].
@@ -1081,9 +1103,64 @@ int amf_context_parse_config(void)
                     /* handle config in sbi library */
                 } else if (!strcmp(amf_key, "metrics")) {
                     /* handle config in metrics library */
-                } else if (!strcmp(amf_key, "ue_overload_threshold")) {
-                    const char *v = ogs_yaml_iter_value(&amf_iter);
-                    if (v) self.ue_overload_threshold = atoi(v); // Max UEs to handle for overload management
+                } else if (!strcmp(amf_key, "overload_management")) {  //overload management FF parsing
+
+                    ogs_info("Inside overload_management config");
+
+                    ogs_yaml_iter_t overload_iter; 
+                    ogs_yaml_iter_recurse(&amf_iter, &overload_iter);
+
+                    while (ogs_yaml_iter_next(&overload_iter)) {
+                        const char *overload_key = ogs_yaml_iter_key(&overload_iter);
+                        ogs_assert(overload_key);
+
+                        /* NAS Congestion control */
+                        if(!strcmp(overload_key, "nas_congestion_control")) {
+                            ogs_yaml_iter_t nas_congestion_iter;
+                            ogs_yaml_iter_recurse(&overload_iter, &nas_congestion_iter);
+
+                            while(ogs_yaml_iter_next(&nas_congestion_iter)) {
+                                const char *nas_congestion_key = ogs_yaml_iter_key(&nas_congestion_iter);
+                                ogs_assert(nas_congestion_key);
+
+                                if(!strcmp(nas_congestion_key, "enable")) {
+                                    const char *v = ogs_yaml_iter_value(&nas_congestion_iter);
+                                    if(v && !strcmp(v, "true")){
+                                        self.nas_congestion_control_enabled = true;
+                                    }
+                                    else {
+                                        self.nas_congestion_control_enabled = false;
+                                    }
+                                } else if(!strcmp(nas_congestion_key, "default_ue_threshold")) {
+                                    const char *v = ogs_yaml_iter_value(&nas_congestion_iter);
+                                    if (v) self.ue_overload_threshold = atoi(v);
+                                } else{
+                                    ogs_warn("unknown key `%s`", nas_congestion_key);
+                                }
+                            }
+                        }
+                        else if (!strcmp(overload_key, "n2_congestion_control")) {
+                            ogs_yaml_iter_t n2_iter;
+                            ogs_yaml_iter_recurse(&overload_iter, &n2_iter);
+
+                            while(ogs_yaml_iter_next(&n2_iter)) {
+                                const char *n2_key = ogs_yaml_iter_key(&n2_iter);
+                                ogs_assert(n2_key);
+
+                                if(!strcmp(n2_key, "enable")) {
+                                    const char *v = ogs_yaml_iter_value(&n2_iter);
+                                    if(v && !strcmp(v, "true")){
+                                        self.n2_congestion_control_enabled = true;
+                                    }
+                                    else {
+                                        self.n2_congestion_control_enabled = false;
+                                    }
+                                } else {
+                                    ogs_warn("unknown key `%s`", n2_key);
+                                }
+                            }
+                        }
+                    }
                 } else
                     ogs_warn("unknown key `%s`", amf_key);
             }

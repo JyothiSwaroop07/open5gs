@@ -1624,24 +1624,29 @@ static void common_register_state(ogs_fsm_t *s, amf_event_t *e,
             ogs_info("Registration request");
 
             /*--- Overload check ---*/
-            amf_overload_result_t result = amf_overload_check(ran_ue);
-            if (result.type == AMF_OVERLOAD_REJECT) {
-                ogs_error("Overload detected: rejecting UE");
-                
-                /* Create temporary AMF-UE if not already present */
-                if (!amf_ue) {
-                    amf_ue = amf_ue_add(ran_ue);
-                    amf_ue_associate_ran_ue(amf_ue, ran_ue);
+            
+            if (amf_self()->nas_congestion_control_enabled) {
+
+                amf_overload_result_t result = amf_overload_check(ran_ue);
+                if (result.type == AMF_OVERLOAD_REJECT) {
+                    ogs_error("Overload detected: rejecting UE");
+                    
+                    /* Create temporary AMF-UE if not already present */
+                    if (!amf_ue) {
+                        amf_ue = amf_ue_add(ran_ue);
+                        amf_ue_associate_ran_ue(amf_ue, ran_ue);
+                    }
+
+                    /* Send REGISTRATION REJECT with backoff */
+                    ogs_expect(OGS_OK == nas_5gs_send_gmm_reject_with_backoff(ran_ue, amf_ue,
+                                                        OGS_5GMM_CAUSE_CONGESTION, result.backoff_time));
+
+                    break;
                 }
 
-                /* Send REGISTRATION REJECT with backoff */
-                ogs_expect(OGS_OK == nas_5gs_send_gmm_reject_with_backoff(ran_ue, amf_ue,
-                                                    OGS_5GMM_CAUSE_CONGESTION, result.backoff_time));
-
-                break;
             }
             /* --- END OVERLOAD CHECK --- */
-
+            
             gmm_cause = gmm_handle_registration_request(
                     amf_ue, h, e->ngap.code,
                     &nas_message->gmm.registration_request);
@@ -1723,6 +1728,7 @@ static void common_register_state(ogs_fsm_t *s, amf_event_t *e,
 
                 gmm_cause = gmm_handle_registration_update(
                         ran_ue, amf_ue, &nas_message->gmm.registration_request);
+
                 if (gmm_cause != OGS_5GMM_CAUSE_REQUEST_ACCEPTED) {
                     ogs_error("[%s] gmm_handle_registration_update() "
                                 "failed [%d]", amf_ue->suci, gmm_cause);

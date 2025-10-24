@@ -38,6 +38,7 @@ ogs_nas_5gmm_cause_t gmm_handle_registration_request(amf_ue_t *amf_ue,
         ogs_nas_security_header_type_t h, NGAP_ProcedureCode_t ngap_code,
         ogs_nas_5gs_registration_request_t *registration_request)
 {
+
     int served_tai_index = 0;
     int i;
     uint8_t gmm_cause;
@@ -392,7 +393,7 @@ ogs_nas_5gmm_cause_t gmm_handle_registration_update(
         return gmm_handle_nas_message_container(
                 ran_ue, amf_ue, OGS_NAS_5GS_REGISTRATION_REQUEST,
                 &registration_request->nas_message_container);
-    }
+    } 
 
     if (registration_request->presencemask &
             OGS_NAS_5GS_REGISTRATION_REQUEST_5GMM_CAPABILITY_PRESENT) {
@@ -1751,6 +1752,7 @@ static ogs_nas_5gmm_cause_t gmm_handle_nas_message_container(
         ran_ue_t *ran_ue, amf_ue_t *amf_ue, uint8_t message_type,
         ogs_nas_message_container_t *nas_message_container)
 {
+
     int gmm_cause;
 
     ogs_pkbuf_t *nasbuf = NULL;
