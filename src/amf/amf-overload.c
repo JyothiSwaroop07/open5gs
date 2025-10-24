@@ -101,10 +101,10 @@ amf_slice_load_t *amf_slice_load_find(const ogs_s_nssai_t *s_nssai)
     amf_slice_load_t *slice_load = (amf_slice_load_t *)ogs_hash_get(hash, key, strlen(key));
 
     if (slice_load) {
-        ogs_info("Slice load found for key %s: ue_count=%u, threshold=%u",
+        ogs_info("Slice load entry found for key %s: ue_count=%u, threshold=%u",
                  key, slice_load->ue_count, slice_load->threshold);
     } else {
-        ogs_info("Slice load NOT found for key %s", key);
+        ogs_info("Slice load entry NOT found for key %s", key);
     }
 
     ogs_free(key);
@@ -128,7 +128,6 @@ amf_slice_load_t *amf_slice_load_add(const ogs_s_nssai_t *s_nssai, uint32_t thre
 
     ogs_hash_set(hash, key, strlen(key), slice_load);
     ogs_info("Added slice load entry: key=%s, threshold=%u", key, threshold);
-    ogs_free(key);
     return slice_load;
 }
 
@@ -207,3 +206,44 @@ uint32_t amf_slice_load_current(const ogs_s_nssai_t *s_nssai)
 
     return __atomic_load_n(&slice_load->ue_count, __ATOMIC_RELAXED);
 }
+
+
+amf_overload_result_t amf_slice_overload_check(
+    const typeof(((amf_ue_t *)0)->requested_nssai) *requested_nssai)
+{
+    amf_overload_result_t res = {AMF_OVERLOAD_OK};
+
+    if (!requested_nssai || requested_nssai->num_of_s_nssai == 0) {
+        ogs_info("No requested NSSAI, skipping slice overload check");
+        return res;
+    }
+
+    for (int i = 0; i < requested_nssai->num_of_s_nssai; i++) {
+        const ogs_nas_s_nssai_ie_t *ie = &requested_nssai->s_nssai[i];
+        ogs_s_nssai_t s_nssai = {0};
+
+        s_nssai.sst = ie->sst;
+        s_nssai.sd.v = ie->sd.v;  // Just copy, 0 = SD not present
+
+        amf_slice_load_t *slice_load = amf_slice_load_find(&s_nssai);
+        if (!slice_load) {
+            ogs_info("Slice load entry not found for requested S-NSSAI %s, skipping",
+                     s_nssai_key(&s_nssai));
+            continue;
+        }
+
+        uint32_t cur = __atomic_load_n(&slice_load->ue_count, __ATOMIC_RELAXED);
+        if (cur >= slice_load->threshold) {
+            ogs_info("Slice overload detected for %s: ue_count=%u >= threshold=%u",
+                     s_nssai_key(&s_nssai), cur, slice_load->threshold);
+
+            res.type = AMF_OVERLOAD_REJECT;
+            res.backoff_time = 20 + (rand() % 6);
+            return res;
+        }
+    }
+
+    ogs_info("No slice overload detected");
+    return res;
+}
+

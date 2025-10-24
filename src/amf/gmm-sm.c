@@ -2509,8 +2509,14 @@ void gmm_state_security_mode(ogs_fsm_t *s, amf_event_t *e)
 
             gmm_cause = gmm_handle_security_mode_complete(
                     amf_ue, &nas_message->gmm.security_mode_complete);
+
+            if (gmm_cause == OGS_5GMM_CAUSE_CONGESTION) {
+                OGS_FSM_TRAN(s, gmm_state_exception);
+                break; //already rejected the message
+            }
+
             if (gmm_cause != OGS_5GMM_CAUSE_REQUEST_ACCEPTED) {
-                ogs_error("[%s] gmm_handle_security_mode_complete() "
+                ogs_error("[%s] gmm_handle_security_mode_complete() "   
                             "failed [%d] in type [%d]",
                             amf_ue->suci, gmm_cause, amf_ue->nas.message_type);
                 r = nas_5gs_send_gmm_reject(ran_ue, amf_ue, gmm_cause);

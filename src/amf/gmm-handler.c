@@ -24,6 +24,7 @@
 #include "sbi-path.h"
 
 #include "gmm-handler.h"
+#include "amf-overload.h"
 
 #undef OGS_LOG_DOMAIN
 #define OGS_LOG_DOMAIN __gmm_log_domain
@@ -356,6 +357,9 @@ ogs_nas_5gmm_cause_t gmm_handle_registration_update(
         ran_ue_t *ran_ue, amf_ue_t *amf_ue,
         ogs_nas_5gs_registration_request_t *registration_request)
 {
+
+    ogs_info("Inside Handling Registration Update");
+
     amf_sess_t *sess = NULL;
     uint16_t psimask;
     int i = 0, served_tai_index = 0;
@@ -447,6 +451,23 @@ ogs_nas_5gmm_cause_t gmm_handle_registration_update(
             }
             return OGS_5GMM_CAUSE_NO_NETWORK_SLICES_AVAILABLE;
         }
+    }
+
+    if (registration_request->registration_type.value == OGS_NAS_5GS_REGISTRATION_TYPE_INITIAL) {
+
+        ogs_info("Request type is Initial Registration, performing slice overload check");
+        
+        amf_overload_result_t result = amf_slice_overload_check(&amf_ue->requested_nssai);
+        if(result.type == AMF_OVERLOAD_REJECT) {
+            ogs_info("Registration rejected due to slice overload");
+
+            ogs_expect(OGS_OK == nas_5gs_send_gmm_reject_with_backoff(ran_ue, amf_ue,
+                                                        OGS_5GMM_CAUSE_CONGESTION, result.backoff_time));
+    
+            return OGS_5GMM_CAUSE_CONGESTION;
+        }
+    } else {
+        ogs_info("Request type is not Initial Registration, skipping slice overload check");
     }
 
     if (registration_request->presencemask &
