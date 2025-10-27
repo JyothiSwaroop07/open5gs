@@ -2512,7 +2512,7 @@ void gmm_state_security_mode(ogs_fsm_t *s, amf_event_t *e)
 
             if (gmm_cause == OGS_5GMM_CAUSE_CONGESTION) {
                 OGS_FSM_TRAN(s, gmm_state_exception);
-                break; //already rejected the message
+                break; //already rejected the message for slice overload with backoff timer
             }
 
             if (gmm_cause != OGS_5GMM_CAUSE_REQUEST_ACCEPTED) {

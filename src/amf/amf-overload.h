@@ -43,8 +43,8 @@ void amf_slice_load_remove(const ogs_s_nssai_t *s_nssai);
 void amf_slice_load_remove_all(void);
 
 // Increment, decrement, get current UE count for a slice
-void amf_slice_load_incr(const ogs_s_nssai_t *s_nssai);
-void amf_slice_load_decr(const ogs_s_nssai_t *s_nssai);
+void amf_slice_load_incr(const ogs_nas_s_nssai_ie_t *nas_s_nssai);
+void amf_slice_load_decr(const ogs_nas_s_nssai_ie_t *nas_s_nssai);
 uint32_t amf_slice_load_current(const ogs_s_nssai_t *s_nssai);
 
 // Check overload based on slice load

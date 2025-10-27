@@ -20,6 +20,7 @@
 #include "nas-security.h"
 #include "gmm-build.h"
 #include "amf-sm.h"
+#include "amf-overload.h"
 
 #undef OGS_LOG_DOMAIN
 #define OGS_LOG_DOMAIN __gmm_log_domain
@@ -166,6 +167,11 @@ ogs_pkbuf_t *gmm_build_registration_accept(amf_ue_t *amf_ue)
         ogs_debug("[%s]    PDU Session Reactivation Result : %04x",
                 amf_ue->supi, pdu_session_reactivation_result->psi);
     }
+
+    amf_slice_load_incr(&amf_ue->allowed_nssai.s_nssai[0]);
+    ogs_info("Slice load incremented for S-NSSAI %s upon Registration Accept",
+            s_nssai_key((const ogs_s_nssai_t *)&amf_ue->allowed_nssai.s_nssai[0]));
+
 
     pkbuf = nas_5gs_security_encode(amf_ue, &message);
 
@@ -344,6 +350,11 @@ ogs_pkbuf_t *gmm_build_de_registration_accept(amf_ue_t *amf_ue)
     message.gmm.h.extended_protocol_discriminator =
         OGS_NAS_EXTENDED_PROTOCOL_DISCRIMINATOR_5GMM;
     message.gmm.h.message_type = OGS_NAS_5GS_DEREGISTRATION_ACCEPT_FROM_UE;
+
+    //decrement slice load count
+    amf_slice_load_decr(&amf_ue->allowed_nssai.s_nssai[0]);
+    ogs_info("Slice load decremented for S-NSSAI %s upon De-registration Accept",
+            s_nssai_key((const ogs_s_nssai_t *)&amf_ue->allowed_nssai.s_nssai[0]));
 
     return nas_5gs_security_encode(amf_ue, &message);
 }

@@ -152,46 +152,57 @@ void amf_slice_load_remove_all(void){
 }
    
 
-void amf_slice_load_incr(const ogs_s_nssai_t *s_nssai)
+void amf_slice_load_incr(const ogs_nas_s_nssai_ie_t *nas_s_nssai)
 {
-    amf_slice_load_t *slice_load = amf_slice_load_find(s_nssai);
+    if (!nas_s_nssai) return;
 
-    if(!slice_load) {
+    // Map NAS S-NSSAI IE to core S-NSSAI struct
+    ogs_s_nssai_t s_nssai = {0};
+    s_nssai.sst = nas_s_nssai->sst;
+    s_nssai.sd  = nas_s_nssai->sd;
+
+    amf_slice_load_t *slice_load = amf_slice_load_find(&s_nssai);
+    if (!slice_load) {
         ogs_info("Slice load entry not found for S-NSSAI %s, cannot increment UE count",
-                s_nssai_key((ogs_s_nssai_t *)s_nssai));
+                 s_nssai_key(&s_nssai));
         return;
     }
 
     __atomic_fetch_add(&slice_load->ue_count, 1, __ATOMIC_RELAXED);
 
     ogs_info("Slice load UE count incremented for S-NSSAI %s: current ue_count=%u, threshold=%u",
-            s_nssai_key((ogs_s_nssai_t *)s_nssai),
-            slice_load->ue_count,
-            slice_load->threshold);
+             s_nssai_key(&s_nssai),
+             slice_load->ue_count,
+             slice_load->threshold);
 }
 
-void amf_slice_load_decr(const ogs_s_nssai_t *s_nssai)
+void amf_slice_load_decr(const ogs_nas_s_nssai_ie_t *nas_s_nssai)
 {
-    amf_slice_load_t *slice_load = amf_slice_load_find(s_nssai);
+    if (!nas_s_nssai) return;
 
-    if(!slice_load) {
+    ogs_s_nssai_t s_nssai = {0};
+    s_nssai.sst = nas_s_nssai->sst;
+    s_nssai.sd  = nas_s_nssai->sd;
+
+    amf_slice_load_t *slice_load = amf_slice_load_find(&s_nssai);
+    if (!slice_load) {
         ogs_info("Slice load entry not found for S-NSSAI %s, cannot decrement UE count",
-                s_nssai_key((ogs_s_nssai_t *)s_nssai));
+                 s_nssai_key(&s_nssai));
         return;
     }
 
-    if(slice_load->ue_count == 0) {
+    if (slice_load->ue_count == 0) {
         ogs_info("Slice load UE count already zero for S-NSSAI %s, cannot decrement",
-                s_nssai_key((ogs_s_nssai_t *)s_nssai));
+                 s_nssai_key(&s_nssai));
         return;
     }
 
     __atomic_fetch_sub(&slice_load->ue_count, 1, __ATOMIC_RELAXED);
 
     ogs_info("Slice load UE count decremented for S-NSSAI %s: current ue_count=%u, threshold=%u",
-            s_nssai_key((ogs_s_nssai_t *)s_nssai),
-            slice_load->ue_count,
-            slice_load->threshold);
+             s_nssai_key(&s_nssai),
+             slice_load->ue_count,
+             slice_load->threshold);
 }
 
 uint32_t amf_slice_load_current(const ogs_s_nssai_t *s_nssai)
