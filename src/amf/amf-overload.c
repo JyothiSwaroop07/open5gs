@@ -12,8 +12,8 @@ amf_overload_result_t amf_overload_check(ran_ue_t *ran_ue)
         return res;
     }
 
-    ogs_info("Overload check: UE context exists: current ue_count=%u, threshold=%u",
-            amf_self()->ue_count, amf_self()->ue_overload_threshold);
+    ogs_info("Overload check: UE context exists: current ue_count=%u, threshold=%u current_rps=%u", 
+            amf_self()->ue_count, amf_self()->ue_overload_threshold, amf_self()->reg_rps);
 
     /* Simple global UE count threshold */
     if (amf_self()->ue_count >= (amf_self()->ue_overload_threshold )) {
@@ -29,6 +29,19 @@ amf_overload_result_t amf_overload_check(ran_ue_t *ran_ue)
         return res;
     }
 
+    //RPS based overload check
+    if (amf_self()->reg_rps >= 8) { // Example threshold: 8 RPS
+        ogs_info("Overload detected based on RPS: current RPS=%u, threshold=8",
+                amf_self()->reg_rps);
+        res.type = AMF_OVERLOAD_REJECT;
+
+        //calculate dynamic backoff time
+        uint32_t backoff_base = 20;    // 20s minimum
+        res.backoff_time = backoff_base + (rand() % 6); // add random jitter 0–5s
+        ogs_info("Decided backoff time: %u seconds", res.backoff_time);
+
+        return res;
+    }
     
 
     // No overload detected
@@ -147,10 +160,28 @@ void amf_slice_load_remove(const ogs_s_nssai_t *s_nssai)
     ogs_free(key);
 }
 
-void amf_slice_load_remove_all(void){
-    
+void amf_slice_load_hash_cleanup(void)
+{
+    ogs_hash_index_t *hi = NULL;
+    void *key = NULL;
+    void *val = NULL;
+    int keylen;
+
+    ogs_hash_t *hash = amf_self()->slice_load_hash;
+    if (!hash)
+        return;
+
+    for (hi = ogs_hash_first(hash); hi; hi = ogs_hash_next(hi)) {
+        ogs_hash_this(hi, (const void **)&key, &keylen, &val);
+        if (key)
+            ogs_free(key);
+        if (val)
+            ogs_free(val);
+    }
+
+    ogs_hash_destroy(hash);
+    amf_self()->slice_load_hash = NULL;
 }
-   
 
 void amf_slice_load_incr(const ogs_nas_s_nssai_ie_t *nas_s_nssai)
 {
@@ -252,9 +283,79 @@ amf_overload_result_t amf_slice_overload_check(
             res.backoff_time = 20 + (rand() % 6);
             return res;
         }
+
+        ogs_info("RPS check for slice - current rps_per_slice=%u", 
+                 __atomic_load_n(&slice_load->rps_per_slice, __ATOMIC_RELAXED));
+
+        uint32_t rps = __atomic_load_n(&slice_load->rps_per_slice, __ATOMIC_RELAXED);
+        if (rps >= 8) { // Example RPS threshold per slice
+            ogs_info("Slice overload detected based on RPS for %u - %u: rps_per_slice=%u >= threshold=8",
+                    slice_load->s_nssai.sst, slice_load->s_nssai.sd.v, rps);
+            res.type = AMF_OVERLOAD_REJECT;
+            res.backoff_time = 20 + (rand() % 6);
+            return res;
+        }   
     }
 
     ogs_info("No slice overload detected");
     return res;
 }
 
+void amf_overload_rps_timer_cb(void *data)
+{
+    amf_context_t *self = data;
+
+    uint64_t count = __atomic_exchange_n(&self->reg_req_count, 0, __ATOMIC_RELAXED);
+    self->reg_rps = (uint32_t)count;
+
+    ogs_info("=== [OVERLOAD] Registration Requests Per Second: %u (Active UEs = %u)", self->reg_rps, self->ue_count);
+
+    // Reset slice RPS counters
+    amf_slice_rps_reset();
+
+    // Restart the timer to make it periodic
+    ogs_timer_start(self->rps_timer, 100000);
+}
+
+void amf_slice_rps_incr(ogs_nas_s_nssai_ie_t *nas_s_nssai)
+{
+    if (!nas_s_nssai) return;
+
+    // Map NAS S-NSSAI IE to core S-NSSAI struct
+    ogs_s_nssai_t s_nssai = {0};
+    s_nssai.sst = nas_s_nssai->sst;
+    s_nssai.sd  = nas_s_nssai->sd;
+
+    amf_slice_load_t *slice_load = amf_slice_load_find(&s_nssai);
+    if (!slice_load) {
+        ogs_info("Slice load entry not found for S-NSSAI %s, cannot increment UE count",
+                 s_nssai_key(&s_nssai));
+        return;
+    }
+
+    __atomic_fetch_add(&slice_load->rps_per_slice, 1, __ATOMIC_RELAXED);
+
+    ogs_info("Slice RPS incremented for S-NSSAI %s: current rps_per_slice=%u",
+             s_nssai_key(&s_nssai),
+             slice_load->rps_per_slice);
+}
+
+void amf_slice_rps_reset(void)
+{
+    ogs_hash_index_t *hi = NULL;
+
+    for (hi = ogs_hash_first(amf_self()->slice_load_hash); hi; hi = ogs_hash_next(hi)) {
+        amf_slice_load_t *slice_load = ogs_hash_this_val(hi);
+        if (!slice_load)
+            continue;
+
+        // Atomically get last value and reset
+        uint32_t slice_rps = __atomic_exchange_n(&slice_load->rps_per_slice, 0, __ATOMIC_RELAXED);
+
+        ogs_info("[OVERLOAD] Slice %u - %u RPS = %u (Active UEs = %u)",
+                 slice_load->s_nssai.sst,
+                 slice_load->s_nssai.sd.v,
+                 slice_rps,
+                 slice_load->ue_count);
+    }
+}

@@ -64,6 +64,11 @@ typedef struct amf_context_s {
 
     ogs_hash_t *slice_load_hash;  // hashmap of amf_slice_load_t keyed by S-NSSAI
 
+    //RPS Configuration
+    ogs_timer_t *rps_timer;         /* RPS timer */
+    uint64_t reg_req_count;        /* Registration Request Count */
+    uint32_t reg_rps;            /* Registration Request Per Second */
+
     /* Served GUAMI */
     int num_of_served_guami;
     ogs_guami_t served_guami[OGS_MAX_NUM_OF_SERVED_GUAMI];

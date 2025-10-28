@@ -24,6 +24,8 @@ typedef struct amf_slice_load_s {
     ogs_s_nssai_t s_nssai;
     uint32_t ue_count;
     uint32_t threshold;
+    uint32_t reg_req_count_per_slice;
+    uint32_t rps_per_slice;
 } amf_slice_load_t;
 
 /* Function to check if AMF is overloaded (global UE count for now) */
@@ -40,7 +42,7 @@ char *s_nssai_key(const ogs_s_nssai_t *s_nssai);
 amf_slice_load_t *amf_slice_load_find(const ogs_s_nssai_t *s_nssai);
 amf_slice_load_t *amf_slice_load_add(const ogs_s_nssai_t *s_nssai, uint32_t threshold);
 void amf_slice_load_remove(const ogs_s_nssai_t *s_nssai);
-void amf_slice_load_remove_all(void);
+void amf_slice_load_hash_cleanup(void);
 
 // Increment, decrement, get current UE count for a slice
 void amf_slice_load_incr(const ogs_nas_s_nssai_ie_t *nas_s_nssai);
@@ -49,6 +51,13 @@ uint32_t amf_slice_load_current(const ogs_s_nssai_t *s_nssai);
 
 // Check overload based on slice load
 amf_overload_result_t amf_slice_overload_check(const typeof(((amf_ue_t *)0)->requested_nssai) *requested_nssai);
+
+// RPS timer callback
+void amf_overload_rps_timer_cb(void *data);
+
+// Slice RPS functions
+void amf_slice_rps_incr(ogs_nas_s_nssai_ie_t *nas_s_nssai);
+void amf_slice_rps_reset(void);
 
 
 #ifdef __cplusplus

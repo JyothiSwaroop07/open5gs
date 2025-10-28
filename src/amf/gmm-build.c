@@ -172,6 +172,7 @@ ogs_pkbuf_t *gmm_build_registration_accept(amf_ue_t *amf_ue)
     ogs_info("Slice load incremented for S-NSSAI %s upon Registration Accept",
             s_nssai_key((const ogs_s_nssai_t *)&amf_ue->allowed_nssai.s_nssai[0]));
 
+    amf_slice_rps_incr(&amf_ue->allowed_nssai.s_nssai[0]);
 
     pkbuf = nas_5gs_security_encode(amf_ue, &message);
 

@@ -89,6 +89,10 @@ void amf_context_init(void)
     self.supi_hash = ogs_hash_make();
     ogs_assert(self.supi_hash);
 
+    self.rps_timer = ogs_timer_add(ogs_app()->timer_mgr, amf_overload_rps_timer_cb, &self);
+    ogs_assert(self.rps_timer);
+    ogs_timer_start(self.rps_timer, 100000); // 100ms interval
+
     amf_self()->ue_count = 0;
 
     context_initialized = 1;
@@ -119,8 +123,10 @@ void amf_context_final(void)
     ogs_pool_final(&ran_ue_pool);
     ogs_pool_final(&amf_gnb_pool);
 
-    amf_slice_load_remove_all();
-    ogs_hash_destroy(amf_self()->slice_load_hash);
+    amf_slice_load_hash_cleanup();
+
+    if (amf_self()->rps_timer)
+    ogs_timer_delete(amf_self()->rps_timer);
 
     context_initialized = 0;
 }
