@@ -69,6 +69,9 @@ typedef struct amf_context_s {
     uint64_t reg_req_count;        /* Registration Request Count */
     uint32_t reg_rps;            /* Registration Request Per Second */
 
+    uint32_t max_rps_threshold;    /* Max RPS threshold for overload detection */
+    uint32_t max_rps_threshold_per_slice; /* Max RPS threshold per slice for overload detection */
+
     /* Served GUAMI */
     int num_of_served_guami;
     ogs_guami_t served_guami[OGS_MAX_NUM_OF_SERVED_GUAMI];

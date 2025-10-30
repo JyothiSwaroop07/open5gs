@@ -91,7 +91,7 @@ void amf_context_init(void)
 
     self.rps_timer = ogs_timer_add(ogs_app()->timer_mgr, amf_overload_rps_timer_cb, &self);
     ogs_assert(self.rps_timer);
-    ogs_timer_start(self.rps_timer, 100000); // 100ms interval
+    ogs_timer_start(self.rps_timer, 1000000); // 100ms interval
 
     amf_self()->ue_count = 0;
 
@@ -1140,6 +1140,12 @@ int amf_context_parse_config(void)
                                 } else if(!strcmp(nas_congestion_key, "default_ue_threshold")) {
                                     const char *v = ogs_yaml_iter_value(&nas_congestion_iter);
                                     if (v) self.ue_overload_threshold = atoi(v);
+                                } else if(!strcmp(nas_congestion_key, "default_rps_threshold")) {
+                                    const char *v = ogs_yaml_iter_value(&nas_congestion_iter);
+                                    if (v) self.max_rps_threshold = atoi(v);
+                                } else if(!strcmp(nas_congestion_key, "default_rps_threshold_per_slice")) {
+                                    const char *v = ogs_yaml_iter_value(&nas_congestion_iter);
+                                    if (v) self.max_rps_threshold_per_slice = atoi(v);
                                 } else{
                                     ogs_warn("unknown key `%s`", nas_congestion_key);
                                 }

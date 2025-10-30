@@ -12,8 +12,8 @@ amf_overload_result_t amf_overload_check(ran_ue_t *ran_ue)
         return res;
     }
 
-    ogs_info("Overload check: UE context exists: current ue_count=%u, threshold=%u current_rps=%u", 
-            amf_self()->ue_count, amf_self()->ue_overload_threshold, amf_self()->reg_rps);
+    ogs_info("Overload check: UE context exists: current ue_count=%u, threshold=%u current_rps=%u rps_threshold=%u", 
+            amf_self()->ue_count, amf_self()->ue_overload_threshold, amf_self()->reg_rps, amf_self()->max_rps_threshold);
 
     /* Simple global UE count threshold */
     if (amf_self()->ue_count >= (amf_self()->ue_overload_threshold )) {
@@ -30,9 +30,9 @@ amf_overload_result_t amf_overload_check(ran_ue_t *ran_ue)
     }
 
     //RPS based overload check
-    if (amf_self()->reg_rps >= 8) { // Example threshold: 8 RPS
-        ogs_info("Overload detected based on RPS: current RPS=%u, threshold=8",
-                amf_self()->reg_rps);
+    if (amf_self()->reg_rps >= amf_self()->max_rps_threshold) { 
+        ogs_info("Overload detected based on RPS: current RPS=%u, threshold=%u",
+                amf_self()->reg_rps, amf_self()->max_rps_threshold);
         res.type = AMF_OVERLOAD_REJECT;
 
         //calculate dynamic backoff time
@@ -194,15 +194,16 @@ void amf_slice_load_incr(const ogs_nas_s_nssai_ie_t *nas_s_nssai)
 
     amf_slice_load_t *slice_load = amf_slice_load_find(&s_nssai);
     if (!slice_load) {
-        ogs_info("Slice load entry not found for S-NSSAI %s, cannot increment UE count",
-                 s_nssai_key(&s_nssai));
+        ogs_info("Slice load entry not found for S-NSSAI %u - %u, cannot increment UE count",
+                 s_nssai.sst, s_nssai.sd.v);
         return;
     }
 
     __atomic_fetch_add(&slice_load->ue_count, 1, __ATOMIC_RELAXED);
 
-    ogs_info("Slice load UE count incremented for S-NSSAI %s: current ue_count=%u, threshold=%u",
-             s_nssai_key(&s_nssai),
+    ogs_info("Slice load UE count incremented for S-NSSAI %u - %u: current ue_count=%u, threshold=%u",
+             slice_load->s_nssai.sst,
+                slice_load->s_nssai.sd.v,
              slice_load->ue_count,
              slice_load->threshold);
 }
@@ -276,21 +277,22 @@ amf_overload_result_t amf_slice_overload_check(
 
         uint32_t cur = __atomic_load_n(&slice_load->ue_count, __ATOMIC_RELAXED);
         if (cur >= slice_load->threshold) {
-            ogs_info("Slice overload detected for %s: ue_count=%u >= threshold=%u",
-                     s_nssai_key(&s_nssai), cur, slice_load->threshold);
+            ogs_info("Slice overload detected for %u - %u: ue_count=%u >= threshold=%u",
+                     slice_load->s_nssai.sst, slice_load->s_nssai.sd.v, cur, slice_load->threshold);
 
             res.type = AMF_OVERLOAD_REJECT;
             res.backoff_time = 20 + (rand() % 6);
             return res;
         }
 
-        ogs_info("RPS check for slice - current rps_per_slice=%u", 
-                 __atomic_load_n(&slice_load->rps_per_slice, __ATOMIC_RELAXED));
+        ogs_info("RPS check for slice - current rps_per_slice=%u rps_threshold=%u", 
+                 __atomic_load_n(&slice_load->rps_per_slice, __ATOMIC_RELAXED),
+                 amf_self()->max_rps_threshold_per_slice);
 
         uint32_t rps = __atomic_load_n(&slice_load->rps_per_slice, __ATOMIC_RELAXED);
-        if (rps >= 8) { // Example RPS threshold per slice
-            ogs_info("Slice overload detected based on RPS for %u - %u: rps_per_slice=%u >= threshold=8",
-                    slice_load->s_nssai.sst, slice_load->s_nssai.sd.v, rps);
+        if (rps >= amf_self()->max_rps_threshold_per_slice) {
+            ogs_info("Slice overload detected based on RPS for %u - %u: rps_per_slice=%u >= threshold=%u",
+                    slice_load->s_nssai.sst, slice_load->s_nssai.sd.v, rps, amf_self()->max_rps_threshold_per_slice);
             res.type = AMF_OVERLOAD_REJECT;
             res.backoff_time = 20 + (rand() % 6);
             return res;
@@ -314,7 +316,7 @@ void amf_overload_rps_timer_cb(void *data)
     amf_slice_rps_reset();
 
     // Restart the timer to make it periodic
-    ogs_timer_start(self->rps_timer, 100000);
+    ogs_timer_start(self->rps_timer, 1000000);
 }
 
 void amf_slice_rps_incr(ogs_nas_s_nssai_ie_t *nas_s_nssai)
