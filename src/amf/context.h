@@ -58,6 +58,9 @@ typedef struct amf_context_s {
     unsigned ue_count; /* To maintain number of UEs for overload management*/
 
     bool nas_congestion_control_enabled; /* NAS Congestion Control Enable/Disable */
+    bool dnn_specific_nas_congestion_control_enabled; /* DNN Congestion Control Enable/Disable */
+    bool slice_specific_nas_congestion_control_enabled; /* Slice Congestion Control Enable/Disable */
+
     unsigned ue_overload_threshold; /* Max number of UEs read from amf config*/
 
     bool n2_congestion_control_enabled; /* N2 Congestion Control Enable/Disable */

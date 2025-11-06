@@ -139,6 +139,8 @@ amf_slice_load_t *amf_slice_load_add(const ogs_s_nssai_t *s_nssai, uint32_t thre
     slice_load->ue_count = 0;
     slice_load->threshold = threshold;
 
+    slice_load->dnn_hash = ogs_hash_make();
+
     ogs_hash_set(hash, key, strlen(key), slice_load);
     ogs_info("Added slice load entry: key=%s, threshold=%u", key, threshold);
     return slice_load;
@@ -164,7 +166,6 @@ void amf_slice_load_hash_cleanup(void)
 {
     ogs_hash_index_t *hi = NULL;
     void *key = NULL;
-    void *val = NULL;
     int keylen;
 
     ogs_hash_t *hash = amf_self()->slice_load_hash;
@@ -172,12 +173,39 @@ void amf_slice_load_hash_cleanup(void)
         return;
 
     for (hi = ogs_hash_first(hash); hi; hi = ogs_hash_next(hi)) {
-        ogs_hash_this(hi, (const void **)&key, &keylen, &val);
+        amf_slice_load_t *slice_load = NULL;
+        ogs_hash_this(hi, (const void **)&key, &keylen, (void **)&slice_load);
+
+        // ✅ Free inner DNN hash if present
+        if (slice_load && slice_load->dnn_hash) {
+            ogs_hash_index_t *dnn_hi = NULL;
+            void *dnn_key = NULL;
+            int dnn_keylen;
+
+            for (dnn_hi = ogs_hash_first(slice_load->dnn_hash);
+                 dnn_hi;
+                 dnn_hi = ogs_hash_next(dnn_hi)) {
+
+                amf_dnn_load_t *dnn_load = NULL;
+                ogs_hash_this(dnn_hi, (const void **)&dnn_key, &dnn_keylen, (void **)&dnn_load);
+
+                if (dnn_key)
+                    ogs_free(dnn_key);
+                if (dnn_load)
+                    ogs_free(dnn_load);
+            }
+
+            ogs_hash_destroy(slice_load->dnn_hash);
+            slice_load->dnn_hash = NULL;
+        }
+
+        // ✅ Free slice-level key and struct
         if (key)
             ogs_free(key);
-        if (val)
-            ogs_free(val);
+        if (slice_load)
+            ogs_free(slice_load);
     }
+
 
     ogs_hash_destroy(hash);
     amf_self()->slice_load_hash = NULL;
@@ -360,4 +388,66 @@ void amf_slice_rps_reset(void)
                  slice_rps,
                  slice_load->ue_count);
     }
+}
+
+amf_dnn_load_t *amf_dnn_load_find(amf_slice_load_t *slice_load, const char *dnn)
+{
+    if (!slice_load || !slice_load->dnn_hash || !dnn) return NULL;
+    return (amf_dnn_load_t *)ogs_hash_get(slice_load->dnn_hash, dnn, strlen(dnn));
+}
+
+amf_dnn_load_t *amf_dnn_load_add(amf_slice_load_t *slice_load, const char *dnn, uint32_t threshold)
+{
+    if (!slice_load || !slice_load->dnn_hash || !dnn) return NULL;
+
+    amf_dnn_load_t *dnn_load = ogs_malloc(sizeof(amf_dnn_load_t));
+    if (!dnn_load) return NULL;
+
+     strncpy(dnn_load->dnn, dnn, sizeof(dnn_load->dnn) - 1);
+    dnn_load->ue_count = 0;
+    dnn_load->threshold = threshold;
+
+    ogs_hash_set(slice_load->dnn_hash, dnn, strlen(dnn), dnn_load);
+    ogs_info("Added DNN %s with threshold %u under slice %s", dnn, threshold, s_nssai_key(&slice_load->s_nssai));
+
+    return dnn_load;
+}
+
+
+amf_overload_result_t amf_dnn_overload_check(
+    const ogs_s_nssai_t *s_nssai, const char *dnn)
+{
+    amf_overload_result_t res = {AMF_OVERLOAD_OK};
+
+    amf_slice_load_t *slice_load = amf_slice_load_find(s_nssai);
+    if (!slice_load) return res;
+
+    // Normal slice-level check (unchanged)
+    uint32_t cur = __atomic_load_n(&slice_load->ue_count, __ATOMIC_RELAXED);
+    if (cur >= slice_load->threshold) {
+        res.type = AMF_OVERLOAD_REJECT;
+        res.backoff_time = 20 + (rand() % 6);
+        return res;
+    }
+
+    ogs_info("slice overload check passed for slice %u-%u", s_nssai->sst, s_nssai->sd.v);
+
+    // 🔹 Now DNN-specific check (only if DNN present)
+    if (dnn && dnn[0]) {
+        amf_dnn_load_t *dnn_load = amf_dnn_load_find(slice_load, dnn);
+        ogs_info("Performing DNN overload check for DNN %s under slice %u - %u with dnn threshold %u", 
+                 dnn, s_nssai->sst, s_nssai->sd.v, dnn_load ? dnn_load->threshold : 0);
+        if (dnn_load) {
+            uint32_t cur_dnn = __atomic_load_n(&dnn_load->ue_count, __ATOMIC_RELAXED);
+            if (cur_dnn >= dnn_load->threshold) {
+                ogs_info("DNN overload detected for %s under slice %s", 
+                         dnn, s_nssai_key(s_nssai));
+                res.type = AMF_OVERLOAD_REJECT;
+                res.backoff_time = 20 + (rand() % 6);
+                return res;
+            }
+        }
+    }
+
+    return res;
 }

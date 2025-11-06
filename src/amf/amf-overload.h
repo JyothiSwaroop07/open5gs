@@ -26,7 +26,16 @@ typedef struct amf_slice_load_s {
     uint32_t threshold;
     uint32_t reg_req_count_per_slice;
     uint32_t rps_per_slice;
+    ogs_hash_t *dnn_hash;
 } amf_slice_load_t;
+
+typedef struct amf_dnn_load_s {
+    char dnn[OGS_MAX_DNN_LEN];
+    uint32_t ue_count;
+    uint32_t threshold;
+    uint32_t reg_req_count_per_dnn;
+    uint32_t rps_per_dnn;
+} amf_dnn_load_t;
 
 /* Function to check if AMF is overloaded (global UE count for now) */
 amf_overload_result_t amf_overload_check(ran_ue_t *ran_ue);
@@ -58,6 +67,12 @@ void amf_overload_rps_timer_cb(void *data);
 // Slice RPS functions
 void amf_slice_rps_incr(ogs_nas_s_nssai_ie_t *nas_s_nssai);
 void amf_slice_rps_reset(void);
+
+// DNN overload check function
+amf_overload_result_t amf_dnn_overload_check(
+    const ogs_s_nssai_t *s_nssai, const char *dnn);
+amf_dnn_load_t *amf_dnn_load_add(amf_slice_load_t *slice_load, const char *dnn, uint32_t threshold);
+amf_dnn_load_t *amf_dnn_load_find(amf_slice_load_t *slice_load, const char *dnn);
 
 
 #ifdef __cplusplus

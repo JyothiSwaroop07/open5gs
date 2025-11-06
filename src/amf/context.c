@@ -729,6 +729,10 @@ int amf_context_parse_config(void)
                                     ogs_s_nssai_t *s_nssai = NULL;
                                     const char *sst = NULL, *sd = NULL;
                                     const char *threshold = NULL;
+                                    bool has_dnn = false;
+                                    //declare dnn array 
+                                    ogs_yaml_iter_t dnn_iter, dnn_array;
+                                    amf_slice_load_t *slice_load = NULL;
 
                                     if (ogs_yaml_iter_type(&s_nssai_array) ==
                                             YAML_MAPPING_NODE) {
@@ -776,6 +780,11 @@ int amf_context_parse_config(void)
                                             threshold = ogs_yaml_iter_value(
                                                     &s_nssai_iter);
                                             }
+                                        else if (!strcmp(
+                                                    s_nssai_key, "dnn")) {
+                                            ogs_yaml_iter_recurse(&s_nssai_iter,
+                                                &dnn_array);
+                                            has_dnn = true;
                                         }
 
                                     if (sst) {
@@ -789,10 +798,59 @@ int amf_context_parse_config(void)
                                                 OGS_S_NSSAI_NO_SD_VALUE;
 
                                         if (threshold) {
-                                            amf_slice_load_t *slice_load =
+                                            slice_load =
                                                 amf_slice_load_add(s_nssai,
                                                     atoi(threshold));
                                             ogs_assert(slice_load);
+                                        }
+
+                                        if (has_dnn) {
+                                            do {
+                                                const char *dnn_name = NULL;
+                                               const char *dnn_threshold = NULL;
+
+                                               if (ogs_yaml_iter_type(&dnn_array) ==
+                                                       YAML_MAPPING_NODE) {
+                                                   memcpy(&dnn_iter, &dnn_array,
+                                                           sizeof(ogs_yaml_iter_t));
+                                               } else if (ogs_yaml_iter_type(&dnn_array) ==
+                                                       YAML_SEQUENCE_NODE) {
+                                                    if (!ogs_yaml_iter_next(&dnn_array))
+                                                        break;
+                                                    ogs_yaml_iter_recurse(&dnn_array, &dnn_iter);
+                                                } else if (ogs_yaml_iter_type(&dnn_array) ==
+                                                        YAML_SCALAR_NODE) {
+                                                    break;
+                                                } else {
+                                                    ogs_assert_if_reached();
+                                                }
+
+                                                while (ogs_yaml_iter_next(&dnn_iter)) {
+                                                    const char *dnn_key = ogs_yaml_iter_key(&dnn_iter);
+                                                    ogs_assert(dnn_key);
+                                                    if (!strcmp(dnn_key, "name")) {
+                                                        dnn_name = ogs_yaml_iter_value(&dnn_iter);
+                                                    } else if (!strcmp(dnn_key, "threshold")) {
+                                                        dnn_threshold = ogs_yaml_iter_value(&dnn_iter);
+                                                    } else
+                                                        ogs_warn("unknown key `%s` in dnn", dnn_key);
+                                                }
+
+                                                if (dnn_name) {
+                                                    /* ensure slice_load exists */
+                                                    if (!slice_load) {
+                                                        /* use slice-level default if present, otherwise use configured default */
+                                                        int thr = threshold ? atoi(threshold) : amf_self()->max_rps_threshold_per_slice;
+                                                        slice_load = amf_slice_load_add(s_nssai, thr);
+                                                        ogs_assert(slice_load);
+                                                    }
+                                                    /* add per-dnn load entry (helper must be implemented) */
+                                                    amf_dnn_load_add(slice_load, dnn_name,
+                                                            dnn_threshold ? atoi(dnn_threshold) : slice_load->threshold);
+                                                }
+                                            } while (ogs_yaml_iter_type(&dnn_array) ==
+                                                    YAML_SEQUENCE_NODE);
+                                            }
                                         }
 
                                         self.plmn_support[
@@ -1136,6 +1194,22 @@ int amf_context_parse_config(void)
                                     }
                                     else {
                                         self.nas_congestion_control_enabled = false;
+                                    }
+                                } else if(!strcmp(nas_congestion_key, "enable_slice_specifc_overload_control")) {
+                                    const char *v = ogs_yaml_iter_value(&nas_congestion_iter);
+                                    if(v && !strcmp(v, "true")){
+                                        self.slice_specific_nas_congestion_control_enabled = true;
+                                    }
+                                    else {
+                                        self.slice_specific_nas_congestion_control_enabled = false;
+                                    }
+                                } else if(!strcmp(nas_congestion_key, "enable_dnn_specific_overload_control")) {
+                                    const char *v = ogs_yaml_iter_value(&nas_congestion_iter);
+                                    if(v && !strcmp(v, "true")){
+                                        self.dnn_specific_nas_congestion_control_enabled = true;
+                                    }
+                                    else {
+                                        self.dnn_specific_nas_congestion_control_enabled = false;
                                     }
                                 } else if(!strcmp(nas_congestion_key, "default_ue_threshold")) {
                                     const char *v = ogs_yaml_iter_value(&nas_congestion_iter);

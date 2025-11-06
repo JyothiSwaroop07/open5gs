@@ -453,7 +453,7 @@ ogs_nas_5gmm_cause_t gmm_handle_registration_update(
         }
     }
 
-    if (registration_request->registration_type.value == OGS_NAS_5GS_REGISTRATION_TYPE_INITIAL) {
+    if (registration_request->registration_type.value == OGS_NAS_5GS_REGISTRATION_TYPE_INITIAL && amf_self()->slice_specific_nas_congestion_control_enabled) {
 
         ogs_info("Request type is Initial Registration, performing slice overload check");
         
@@ -1442,6 +1442,30 @@ int gmm_handle_ul_nas_transport(ran_ue_t *ran_ue, amf_ue_t *amf_ue,
                 sess->sm_context_ref ? sess->sm_context_ref : "NULL",
                 sess->sm_context_resource_uri ?
                     sess->sm_context_resource_uri : "NULL");
+
+            //DNN overload check
+            if(gsm_header->message_type == OGS_NAS_5GS_PDU_SESSION_ESTABLISHMENT_REQUEST && amf_self()->dnn_specific_nas_congestion_control_enabled) {
+
+                ogs_info("[%s] Performing DNN overload check for slice [sst=%d sd=0x%x] and DNN [%s]",
+                amf_ue->supi, sess->s_nssai.sst, sess->s_nssai.sd.v, sess->dnn);
+
+                amf_overload_result_t dnn_result = amf_dnn_overload_check(&sess->s_nssai, sess->dnn);
+
+                if (dnn_result.type == AMF_OVERLOAD_REJECT) {
+                    ogs_warn("[%s] DNN overload detected for slice [sst=%d sd=0x%x] and DNN [%s]. Rejecting PDU session request.",
+                            amf_ue->supi, sess->s_nssai.sst, sess->s_nssai.sd.v, sess->dnn);
+
+                    /* Send rejection with backoff timer if configured */
+                    // ogs_expect(OGS_OK == nas_5gs_send_gmm_reject_with_backoff(
+                    //     ran_ue, amf_ue, OGS_5GMM_CAUSE_CONGESTION, dnn_result.backoff_time));
+
+                    /* Cleanup session context if needed */
+                    return OGS_ERROR;
+                }
+
+                ogs_info("[%s] DNN overload check passed for DNN [%s]", amf_ue->supi, sess->dnn);
+            }
+
 
             if (!SESSION_CONTEXT_IN_SMF(sess)) {
                 ogs_sbi_nf_instance_t *v_smf_instance = NULL;
