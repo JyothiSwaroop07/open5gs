@@ -1,6 +1,7 @@
 #include "amf-overload.h"
 #include "context.h"
 #include "ogs-core.h"
+#include "ngap-build.h"
 
 /* Simple UE-based overload check */
 amf_overload_result_t amf_overload_check(ran_ue_t *ran_ue)
@@ -450,4 +451,46 @@ amf_overload_result_t amf_dnn_overload_check(
     }
 
     return res;
+}
+
+bool amf_n2_is_overloaded(void) {
+    amf_n2_congestion_t *n2_congestion = &amf_self()->n2_congestion;
+    uint32_t ue_count = amf_self()->ue_count;
+    uint32_t rps = amf_self()->reg_rps;    // use reg_rps as a proxy for N2 RPS
+
+    ogs_info("N2 Congestion Check: RPS=%u (threshold=%u), ue_count=%u (threshold=%u)", 
+             rps, n2_congestion->max_n2_rps_threshold,
+             ue_count, n2_congestion->n2_ue_overload_threshold);
+
+    bool previously_overloaded = n2_congestion->overloaded;
+    bool currently_overloaded = (rps >= n2_congestion->max_n2_rps_threshold ||
+                                 ue_count >= n2_congestion->n2_ue_overload_threshold);
+
+    // Hysteresis logic
+    if (previously_overloaded && !currently_overloaded) {
+        uint32_t rps_clear = n2_congestion->max_n2_rps_threshold * n2_congestion->hysterisis_pct / 100;
+        uint32_t ue_clear = n2_congestion->n2_ue_overload_threshold  * n2_congestion->hysterisis_pct / 100;
+
+        currently_overloaded = !(rps >= rps_clear && ue_count < ue_clear); // still overloaded if above clear thresholds
+    }
+
+    // Update state
+    if(currently_overloaded != previously_overloaded) {
+        n2_congestion->overloaded = currently_overloaded;
+        ogs_info("N2 Congestion state changed: overloaded=%s (RPS=%u, ue_count=%u)", 
+                 currently_overloaded ? "TRUE" : "FALSE", rps, ue_count);
+
+        if(currently_overloaded) {
+            ogs_warn("N2 Congestion detected: RPS=%u (threshold=%u), ue_count=%u (threshold=%u)", 
+                     rps, n2_congestion->max_n2_rps_threshold,
+                     ue_count, n2_congestion->n2_ue_overload_threshold);
+            ngap_send_overload_start_to_all_gnbs(true);
+        } else {
+            ogs_warn("N2 Congestion cleared: RPS=%u, ue_count=%u", rps, ue_count);
+            ngap_send_overload_stop_to_all_gnbs();
+        }
+    }
+
+
+    return n2_congestion->overloaded;
 }

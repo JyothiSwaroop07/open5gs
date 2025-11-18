@@ -435,6 +435,11 @@ void ngap_handle_ng_setup_request(amf_gnb_t *gnb, ogs_ngap_message_t *message)
 
 void ngap_handle_initial_ue_message(amf_gnb_t *gnb, ogs_ngap_message_t *message)
 {
+
+    if (amf_n2_is_overloaded()) {
+        ogs_warn("N2CC: Indicating gNB about AMF overload");
+    }
+
     int i, r;
     char buf[OGS_ADDRSTRLEN];
 
@@ -638,6 +643,7 @@ void ngap_handle_initial_ue_message(amf_gnb_t *gnb, ogs_ngap_message_t *message)
     
     ogs_expect(OGS_OK == ngap_send_to_nas(
                 ran_ue, NGAP_ProcedureCode_id_InitialUEMessage, NAS_PDU));
+
 }
 
 void ngap_handle_uplink_nas_transport(

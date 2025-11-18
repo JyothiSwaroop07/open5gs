@@ -53,6 +53,17 @@ typedef enum {
     REGISTRATION_STATUS_UPDATE_NEW_AMF_STATE,
 } amf_ue_context_transfer_state_t;
 
+typedef struct amf_n2_congestion_s {
+    uint32_t max_n2_rps_threshold;  // Max RPS threshold for N2 congestion
+    uint32_t n2_ue_overload_threshold; // Max UE count threshold for N2 congestion
+    uint32_t hysterisis_pct; // Hysterisis percentage
+    bool overloaded;
+
+    // we can add inflight as a parameter later
+} amf_n2_congestion_t;
+// AMF context structure
+// rps = requests per second is used from amf_context_t instead of seperately for N2
+
 typedef struct amf_context_s {
 
     unsigned ue_count; /* To maintain number of UEs for overload management*/
@@ -74,6 +85,8 @@ typedef struct amf_context_s {
 
     uint32_t max_rps_threshold;    /* Max RPS threshold for overload detection */
     uint32_t max_rps_threshold_per_slice; /* Max RPS threshold per slice for overload detection */
+
+    amf_n2_congestion_t n2_congestion;
 
     /* Served GUAMI */
     int num_of_served_guami;

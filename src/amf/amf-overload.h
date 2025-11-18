@@ -74,6 +74,7 @@ amf_overload_result_t amf_dnn_overload_check(
 amf_dnn_load_t *amf_dnn_load_add(amf_slice_load_t *slice_load, const char *dnn, uint32_t threshold);
 amf_dnn_load_t *amf_dnn_load_find(amf_slice_load_t *slice_load, const char *dnn);
 
+bool amf_n2_is_overloaded(void);
 
 #ifdef __cplusplus
 }

@@ -75,6 +75,9 @@ ogs_pkbuf_t *ngap_build_downlink_ran_status_transfer(
     ran_ue_t *target_ue,
     NGAP_RANStatusTransfer_TransparentContainer_t *transfer);
 
+int ngap_send_overload_start_to_all_gnbs(bool reject_non_emergency);
+int ngap_send_overload_stop_to_all_gnbs(void);
+
 #ifdef __cplusplus
 }
 #endif

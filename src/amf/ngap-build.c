@@ -2728,3 +2728,107 @@ ogs_pkbuf_t *ngap_build_downlink_ran_status_transfer(
 
     return ogs_ngap_encode(&pdu);
 }
+
+
+static ogs_pkbuf_t *build_overload_start(bool reject_non_emergency)
+{
+    NGAP_NGAP_PDU_t pdu;
+    NGAP_InitiatingMessage_t *initiatingMessage;
+    NGAP_OverloadStart_t *OverloadStart;
+    NGAP_OverloadStartIEs_t *ie;
+    NGAP_OverloadResponse_t *OverloadResponse;
+
+    memset(&pdu, 0, sizeof(pdu));
+
+    pdu.present = NGAP_NGAP_PDU_PR_initiatingMessage;
+    pdu.choice.initiatingMessage = CALLOC(1, sizeof(NGAP_InitiatingMessage_t));
+
+    initiatingMessage = pdu.choice.initiatingMessage;
+    initiatingMessage->procedureCode = NGAP_ProcedureCode_id_OverloadStart;
+    initiatingMessage->criticality = NGAP_Criticality_reject;
+    initiatingMessage->value.present =
+        NGAP_InitiatingMessage__value_PR_OverloadStart;
+
+    OverloadStart = &initiatingMessage->value.choice.OverloadStart;
+
+    ie = CALLOC(1, sizeof(NGAP_OverloadStartIEs_t));
+    ie->id = NGAP_ProtocolIE_ID_id_AMFOverloadResponse;
+    ie->criticality = NGAP_Criticality_reject;
+    ie->value.present = NGAP_OverloadStartIEs__value_PR_OverloadResponse;
+    ASN_SEQUENCE_ADD(&OverloadStart->protocolIEs, ie);
+
+    OverloadResponse = &ie->value.choice.OverloadResponse;
+
+    /* REQUIRED: choose overloadAction branch */
+    OverloadResponse->present = NGAP_OverloadResponse_PR_overloadAction;
+
+    if (reject_non_emergency) {
+        /* Allow only emergency attaches */
+        OverloadResponse->choice.overloadAction =
+            NGAP_OverloadAction_reject_non_emergency_mo_dt;
+    } else {
+        /* Severe overload: block almost everything except emergency & paging */
+        OverloadResponse->choice.overloadAction =
+            NGAP_OverloadAction_permit_emergency_sessions_and_mobile_terminated_services_only;
+    }
+
+    return ogs_ngap_encode(&pdu);
+}
+
+static ogs_pkbuf_t *build_overload_stop(void) {
+    NGAP_NGAP_PDU_t pdu;
+    NGAP_InitiatingMessage_t *initiatingMessage;
+    NGAP_OverloadStop_t *OverloadStop;
+    NGAP_OverloadStopIEs_t *ie;
+
+    memset(&pdu, 0, sizeof(pdu));
+
+    pdu.present = NGAP_NGAP_PDU_PR_initiatingMessage;
+    pdu.choice.initiatingMessage = CALLOC(1, sizeof(NGAP_InitiatingMessage_t));
+
+    initiatingMessage = pdu.choice.initiatingMessage;
+    initiatingMessage->procedureCode = NGAP_ProcedureCode_id_OverloadStop;
+    initiatingMessage->criticality = NGAP_Criticality_reject;
+    initiatingMessage->value.present =
+        NGAP_InitiatingMessage__value_PR_OverloadStop;
+
+    OverloadStop = &initiatingMessage->value.choice.OverloadStop;
+
+    ie = CALLOC(1, sizeof(NGAP_OverloadStopIEs_t));
+    ie->id = NGAP_ProtocolIE_ID_id_AMFOverloadResponse;
+    ie->criticality = NGAP_Criticality_reject;
+    ie->value.present = NGAP_OverloadStopIEs__value_PR_NOTHING;
+    ASN_SEQUENCE_ADD(&OverloadStop->protocolIEs, ie);
+
+    return ogs_ngap_encode(&pdu);
+} 
+
+
+int ngap_send_overload_start_to_all_gnbs(bool reject_non_emergency)
+{
+    ogs_pkbuf_t *pkbuf = build_overload_start(reject_non_emergency);
+    if (!pkbuf) return OGS_ERROR;
+
+    amf_gnb_t *gnb = NULL;
+    ogs_list_for_each(&amf_self()->gnb_list, gnb) {
+        if (gnb->sctp.sock)
+            ogs_sctp_sendmsg(gnb->sctp.sock, pkbuf->data, pkbuf->len, NULL, 60, 0);
+    }
+    ogs_pkbuf_free(pkbuf);
+    return OGS_OK;
+}
+
+
+int ngap_send_overload_stop_to_all_gnbs(void)
+{
+    ogs_pkbuf_t *pkbuf = build_overload_stop();
+    if (!pkbuf) return OGS_ERROR;
+
+    amf_gnb_t *gnb = NULL;
+    ogs_list_for_each(&amf_self()->gnb_list, gnb) {
+        if (gnb->sctp.sock)
+            ogs_sctp_sendmsg(gnb->sctp.sock, pkbuf->data, pkbuf->len, NULL, 60, 0);
+    }
+    ogs_pkbuf_free(pkbuf);
+    return OGS_OK;
+}

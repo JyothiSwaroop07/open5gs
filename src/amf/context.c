@@ -71,6 +71,9 @@ void amf_context_init(void)
     self.slice_load_hash = ogs_hash_make();
     ogs_assert(self.slice_load_hash);
 
+    // Initialize N2 congestion control state
+    self.n2_congestion.overloaded = false;
+
 #if 0 /* For debugging : Verify whether there are duplicates of M_TMSI. */
     ogs_pool_assert_if_has_duplicate(&m_tmsi_pool);
 #endif
@@ -1241,7 +1244,20 @@ int amf_context_parse_config(void)
                                     else {
                                         self.n2_congestion_control_enabled = false;
                                     }
-                                } else {
+                                } 
+                                else if(!strcmp(n2_key, "default_rps_threshold")) {
+                                    const char *v = ogs_yaml_iter_value(&n2_iter);
+                                    if (v) self.n2_congestion.max_n2_rps_threshold = atoi(v);
+                                }
+                                else if(!strcmp(n2_key, "default_ue_threshold")) {
+                                    const char *v = ogs_yaml_iter_value(&n2_iter);
+                                    if (v) self.n2_congestion.n2_ue_overload_threshold = atoi(v);
+                                }
+                                else if(!strcmp(n2_key, "hysterisis_pct")) {
+                                    const char *v = ogs_yaml_iter_value(&n2_iter);
+                                    if (v) self.n2_congestion.hysterisis_pct = atoi(v);
+                                }
+                                else {
                                     ogs_warn("unknown key `%s`", n2_key);
                                 }
                             }
